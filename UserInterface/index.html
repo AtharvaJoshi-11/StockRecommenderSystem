@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Statements & DCF Calculation</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="text-center">Financial Statements & DCF Calculation</h2>
+        <div class="mb-3">
+            <label for="ticker" class="form-label">Enter Stock Ticker:</label>
+            <input type="text" class="form-control" id="ticker" placeholder="Enter ticker symbol">
+        </div>
+        <button id="fetchData" class="btn btn-primary">Fetch Financial Data</button>
+        <button id="calculateDCF" class="btn btn-secondary mt-2">Calculate DCF</button>
+        <button onclick="plotStockChart()">Plot Chart</button>
+        <canvas id="stockChart" width="800" height="400"></canvas>
+        <button id = "getAnalysis">Get Analysis</button>
+        <div id="result"></div>
+
+        <!-- Financial Statement Tables -->
+        <div class="mt-5" id="result">
+            <h3>Balance Sheet</h3>
+            <table class="table table-striped" id="balanceSheetTable">
+                <thead>
+                    <tr id="balanceSheetHeaders"></tr>
+                </thead>
+                <tbody id="balanceSheetData"></tbody>
+            </table>
+
+            <h3>Cash Flow Statement</h3>
+            <table class="table table-striped" id="cashFlowTable">
+                <thead>
+                    <tr id="cashFlowHeaders"></tr>
+                </thead>
+                <tbody id="cashFlowData"></tbody>
+            </table>
+
+            <h3>Income Statement</h3>
+            <table class="table table-striped" id="incomeStatementTable">
+                <thead>
+                    <tr id="incomeStatementHeaders"></tr>
+                </thead>
+                <tbody id="incomeStatementData"></tbody>
+            </table>
+        </div>
+
+        <!-- DCF Calculation Results -->
+        <div class="mt-5" id="dcfResult">
+            <h3>Discounted Cash Flow (DCF) Calculation</h3>
+            <!-- <p><strong>Market Cap:</strong> <span id="marketCap"></span></p> -->
+            <p><strong>Free Cash Flow:</strong> <span id="freeCashFlow"></span></p>
+            <p><strong>Discount Rate (WACC):</strong> <span id="discountRate"></span></p>
+            <p><strong>Intrinsic Value:</strong> <span id="intrinsicValue"></span></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Fetch financial statements data
+            $('#fetchData').click(function() {
+                let ticker = $('#ticker').val();
+                if (ticker) {
+                    $.ajax({
+                        url: '/api/scrape',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ ticker_symbol: ticker }),
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                $('#balanceSheetHeaders, #balanceSheetData').empty();
+                                $('#cashFlowHeaders, #cashFlowData').empty();
+                                $('#incomeStatementHeaders, #incomeStatementData').empty();
+                                
+                                populateTable(response.balance_sheet, '#balanceSheetHeaders', '#balanceSheetData');
+                                populateTable(response.cash_flow, '#cashFlowHeaders', '#cashFlowData');
+                                populateTable(response.income_statement, '#incomeStatementHeaders', '#incomeStatementData');
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function() {
+                            alert('Failed to fetch data from the server.');
+                        }
+                    });
+                } else {
+                    alert('Please enter a valid ticker symbol.');
+                }
+            });
+
+            // Calculate DCF
+            $('#calculateDCF').click(function() {
+                let ticker = $('#ticker').val();
+                if (ticker) {
+                    $.ajax({
+                        url: '/api/calculate_dcf',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ ticker_symbol: ticker }),
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                // Display DCF results
+                                $('#freeCashFlow').text(response.free_cash_flow);
+                                $('#discountRate').text(response.wacc);
+                                $('#intrinsicValue').text(response.intrinsic_value);;
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function() {
+                            alert('Failed to calculate DCF from the server.');
+                        }
+                    });
+                } else {
+                    alert('Please enter a valid ticker symbol.');
+                }
+            });
+
+            $('#getAnalysis').click(function() {
+                let ticker = $('#ticker').val();
+                if (ticker) {
+                    $.ajax({
+                        url: '/gpt_assistant',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ ticker_symbol: ticker }),
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                // Display DCF results
+                                $('#result').text(response.analysis);
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function() {
+                            alert('Failed to calculate DCF from the server.');
+                        }
+                    });
+                } else {
+                    alert('Please enter a valid ticker symbol.');
+                }
+            });
+            
+            // Function to populate tables from the financial statements
+            function populateTable(data, headerSelector, bodySelector) {
+                if (data && data.length > 0) {
+                    let headers = Object.keys(data[0]);
+                    headers.forEach(header => {
+                        $(headerSelector).append('<th>' + header + '</th>');
+                    });
+                    
+                    data.forEach(row => {
+                        let rowHtml = '<tr>';
+                        headers.forEach(header => {
+                            rowHtml += '<td>' + (row[header] || '') + '</td>';
+                        });
+                        rowHtml += '</tr>';
+                        $(bodySelector).append(rowHtml);
+                    });
+                }
+            }
+        });
+    </script>
+
+    <script>
+        async function fetchStockData(symbol) {
+            try {
+                const response = await fetch(`/stock-data?symbol=${symbol}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch data');
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return null;
+            }
+        }
+
+        async function plotStockChart() {
+            const symbol = document.getElementById('ticker').value.toUpperCase();
+            const data = await fetchStockData(symbol);
+            if (!data || data.length === 0) {
+                console.error('Empty or invalid data received');
+                return;
+            }
+
+            const dates = data.map(entry => entry.Date);
+            const prices = data.map(entry => entry.Close);
+
+            const ctx = document.getElementById('stockChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: symbol,
+                        data: prices,
+                        fill: false,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        xAxes: [{
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                parser: 'YYYY-MM-DD'
+                            },
+                            ticks: {
+                                source: 'labels'
+                            }
+                        }],
+                        yAxes: [{
+                            ticks: {
+                                beginAtZero: false,
+                                callback: function(value) {
+                                    return '$' + value;
+                                }
+                            }
+                        }]
+                    }
+                }
+            });
+        }
+    </script>
+
+</body>
+</html>
