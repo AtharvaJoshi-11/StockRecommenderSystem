@@ -74,6 +74,7 @@ Future Improvements
 Machine Learning: Integrate ML algorithms to improve stock recommendation accuracy.
 Portfolio Management: Enable users to create and manage stock portfolios.
 Real-time Alerts: Notify users when a stock's price crosses its intrinsic value threshold.
+
 ## Technologies Used
 Frontend: HTML, CSS, JavaScript, AJAX, Chart.js
 Backend: Python (Flask)
